@@ -1,0 +1,33 @@
+# Base44 development environment for Apktool-M-updates.
+#
+# This repository is a static update feed, not a web application: the Apktool M
+# Android client fetches updates/update_<lang>.json and downloads the APKs from
+# files/. So "running" it here means serving the repository tree over HTTP from
+# the cloned source, at the same paths the client uses on raw.githubusercontent.com.
+#
+# Files are served straight from the bind mount, so edits in the repo appear
+# without rebuilding or restarting anything.
+services:
+  web:
+    image: nginx:1.27-alpine
+    ports:
+      - "3000:80"
+    volumes:
+      # Only the published parts of the feed are exposed. The checkout's root
+      # directory is mode 700, which nginx's worker user cannot traverse, so the
+      # whole repo is not bind-mounted as the document root.
+      - ./files:/srv/feed/files:ro
+      - ./updates:/srv/feed/updates:ro
+      - ./docker/base44-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: on-failure
+    labels:
+      base44.project: "Apktool-M-updates"
+      base44.kind: "web"
+      base44.port: "3000"
+    healthcheck:
+      # Probes real content (an update manifest), not just an open port.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/updates/update_ru.json || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
